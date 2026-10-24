@@ -110,86 +110,154 @@ footer {
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<script>
+  
 const map = L.map('map').setView([25.58, 83.58], 10);
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+L.tileLayer(
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }
+).addTo(map);
 
 let marker;
+let requestNumber = 0;
 
-function showPlace(lat, lon, name) {
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, c => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[c]);
+}
+
+async function getPlaceInfo(lat, lon, typedName = '') {
+  const id = ++requestNumber;
+  const details = document.getElementById('details');
+
   if (marker) map.removeLayer(marker);
 
   marker = L.marker([lat, lon]).addTo(map);
-  marker.bindPopup(name).openPopup();
+  marker.bindPopup('जगह की जानकारी खोजी जा रही है...').openPopup();
 
-  document.getElementById('details').innerHTML = `
-    <h3>📍 ${escapeHTML(name)}</h3>
-    <p><b>अक्षांश:</b> ${lat.toFixed(5)}</p>
-    <p><b>देशांतर:</b> ${lon.toFixed(5)}</p>
-    <p>जिला: गाजीपुर के क्षेत्र की जाँच आवश्यक</p>
-    <p>ग्राम प्रधान: सत्यापित जानकारी अभी नहीं जोड़ी गई</p>
-    <p>विधायक / सांसद: संबंधित निर्वाचन क्षेत्र की जाँच आवश्यक</p>
-    <p class="note">
-      यह स्थान चुने गए बिंदु का है। इससे गाँव की सीमा,
-      प्रधान या निर्वाचित प्रतिनिधि की पहचान अपने आप
-      सत्यापित नहीं होती।
-    </p>`;
+  details.innerHTML = '<h3>जानकारी खोजी जा रही है...</h3>';
+
+  try {
+    const url =
+      'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' +
+      lat + '&lon=' + lon + '&zoom=18&addressdetails=1';
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('डेटा नहीं मिला');
+
+    const data = await response.json();
+    if (id !== requestNumber) return;
+
+    const a = data.address || {};
+    const name = typedName || data.name ||
+      a.village || a.town || a.city ||
+      a.suburb || 'चुनी गई जगह';
+
+    const district = a.state_district || a.county || 'उपलब्ध नहीं';
+    const village = a.village || a.town || a.city ||
+      a.hamlet || a.suburb || 'उपलब्ध नहीं';
+    const pin = a.postcode || 'उपलब्ध नहीं';
+
+    marker.bindPopup(escapeHTML(name)).openPopup();
+
+    details.innerHTML = `
+      <h3>📍 ${escapeHTML(name)}</h3>
+      <p><b>जिला:</b> ${escapeHTML(district)}</p>
+      <p><b>गाँव/शहर:</b> ${escapeHTML(village)}</p>
+      <p><b>पिन कोड:</b> ${escapeHTML(pin)}</p>
+      <p><b>अक्षांश:</b> ${lat.toFixed(5)}</p>
+      <p><b>देशांतर:</b> ${lon.toFixed(5)}</p>
+      <hr>
+      <p><b>ग्राम प्रधान:</b> आधिकारिक रिकॉर्ड जोड़ना बाकी</p>
+      <p><b>विधायक / सांसद:</b> निर्वाचन क्षेत्र का सत्यापन बाकी</p>
+      <p><b>तहसील / ब्लॉक:</b> आधिकारिक डेटा जोड़ना बाकी</p>
+      <p class="note">
+        जगह का नाम OpenStreetMap से मिला है।
+        सरकारी पदाधिकारियों की जानकारी अभी सत्यापित नहीं है।
+      </p>
+    `;
+  } catch (error) {
+    if (id !== requestNumber) return;
+
+    details.innerHTML = `
+      <h3>📍 चुनी गई जगह</h3>
+      <p>अक्षांश: ${lat.toFixed(5)}</p>
+      <p>देशांतर: ${lon.toFixed(5)}</p>
+      <p>जगह का नाम अभी नहीं मिल सका। इंटरनेट जाँचकर फिर कोशिश करें।</p>
+    `;
+  }
 }
 
-function escapeHTML(value) {
-  return String(value).replace(/[&<>"']/g, function(c) {
-    return {
-      '&': '&amp;', '<': '&lt;', '>': '&gt;',
-      '"': '&quot;', "'": '&#39;'
-    }[c];
-  });
-}
-
-map.on('click', function(e) {
-  showPlace(e.latlng.lat, e.latlng.lng, 'चुनी गई जगह');
+map.on('click', e => {
+  getPlaceInfo(e.latlng.lat, e.latlng.lng);
 });
 
 async function searchPlace() {
-  const q = document.getElementById('place').value.trim();
+  const input = document.getElementById('place');
+  const q = input.value.trim();
 
   if (!q) {
-    alert('पहले गाँव या शहर का नाम लिखो।');
+    alert('गाँव या शहर का नाम लिखें।');
     return;
   }
 
-  const query = q + ', Ghazipur, Uttar Pradesh, India';
-  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q='
-    + encodeURIComponent(query);
+  const details = document.getElementById('details');
+  details.innerHTML = '<h3>जगह खोजी जा रही है...</h3>';
 
   try {
+    const query = q + ', Ghazipur, Uttar Pradesh, India';
+    const url =
+      'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=' +
+      encodeURIComponent(query);
+
     const response = await fetch(url);
-    if (!response.ok) throw new Error('Search unavailable');
+    if (!response.ok) throw new Error('खोज उपलब्ध नहीं');
 
     const results = await response.json();
 
     if (!results.length) {
-      alert('जगह नहीं मिली। नाम बदलकर कोशिश करो।');
+      details.innerHTML =
+        '<h3>जगह नहीं मिली</h3><p>नाम बदलकर दोबारा खोजें।</p>';
       return;
     }
 
-    const p = results[0];
-    const lat = Number(p.lat);
-    const lon = Number(p.lon);
+    if (results.length > 1) {
+      details.innerHTML = '<h3>खोज के परिणाम</h3>' +
+        results.map((p, i) =>
+          `<p><button onclick="selectResult(${i})">${
+            escapeHTML(p.display_name)
+          }</button></p>`
+        ).join('');
+      window.searchResults = results;
+      return;
+    }
 
-    map.setView([lat, lon], 14);
-    showPlace(lat, lon, p.display_name);
+    selectResult(0, results);
   } catch (error) {
-    alert('खोज अभी नहीं हो पाई। इंटरनेट जाँचकर दोबारा कोशिश करो।');
+    details.innerHTML =
+      '<p>खोज नहीं हो पाई। इंटरनेट कनेक्शन जाँचकर फिर कोशिश करें।</p>';
   }
+}
+
+function selectResult(index, results = window.searchResults) {
+  if (!results || !results[index]) return;
+
+  const p = results[index];
+  const lat = Number(p.lat);
+  const lon = Number(p.lon);
+
+  map.setView([lat, lon], 15);
+  getPlaceInfo(lat, lon, p.name || p.display_name);
 }
 
 document.getElementById('place').addEventListener('keydown', e => {
   if (e.key === 'Enter') searchPlace();
 });
-</script>
-</body>
-</html>
