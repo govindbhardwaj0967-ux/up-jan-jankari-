@@ -287,7 +287,20 @@ document.getElementById('place').addEventListener('keydown', e => {
 });
  async function searchBlock(blockName) {
   const input = document.getElementById('place');
-  input.value = blockName + ', Ghazipur, Uttar Pradesh, India';
+
+  const names = {
+    Sadat: 'Sadat, Jakhania, Ghazipur, Uttar Pradesh, India',
+    Jakhania: 'Jakhania, Ghazipur, Uttar Pradesh, India',
+    Ghazipur: 'Ghazipur, Uttar Pradesh, India',
+    Saidpur: 'Saidpur, Ghazipur, Uttar Pradesh, India',
+    Zamania: 'Zamania, Ghazipur, Uttar Pradesh, India',
+    Kasimabad: 'Kasimabad, Ghazipur, Uttar Pradesh, India',
+    Mohammadabad: 'Mohammadabad, Ghazipur, Uttar Pradesh, India'
+  };
+
+  input.value = names[blockName] || 
+    blockName + ', Ghazipur, Uttar Pradesh, India';
+
   await searchPlace();
  }
 </script>
