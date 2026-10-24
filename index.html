@@ -1,0 +1,195 @@
+
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UP Jan Jankari</title>
+
+<link rel="stylesheet"
+ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f1f5f9;
+  color: #172033;
+}
+
+header {
+  background: #14532d;
+  color: white;
+  padding: 18px 14px;
+}
+
+header h2 { margin: 0 0 6px; }
+header p { margin: 0; font-size: 14px; }
+
+.search {
+  display: flex;
+  gap: 7px;
+  padding: 12px;
+  background: white;
+}
+
+input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+button {
+  background: #15803d;
+  color: white;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 13px;
+  font-size: 14px;
+}
+
+#map {
+  height: 52vh;
+  min-height: 330px;
+  width: 100%;
+}
+
+#details {
+  background: white;
+  margin: 12px;
+  padding: 16px;
+  border-radius: 12px;
+  line-height: 1.7;
+}
+
+.note {
+  color: #64748b;
+  font-size: 13px;
+}
+
+footer {
+  text-align: center;
+  padding: 14px;
+  font-size: 12px;
+  color: #64748b;
+}
+</style>
+</head>
+
+<body>
+<header>
+  <h2>🗺️ UP जन जानकारी</h2>
+  <p>उत्तर प्रदेश की जगहें और सरकारी जानकारी</p>
+</header>
+
+<div class="search">
+  <input id="place"
+   placeholder="गाँव, शहर या जगह खोजें">
+  <button onclick="searchPlace()">खोजें</button>
+</div>
+
+<div id="map"></div>
+
+<section id="details">
+  <h3>📍 गाजीपुर, उत्तर प्रदेश</h3>
+  <p>नक्शे पर किसी जगह को चुनो या ऊपर उसका नाम खोजो।</p>
+  <p class="note">
+    अभी यह शुरुआती वर्जन है। प्रधान, विधायक और
+    अधिकारियों के सत्यापित रिकॉर्ड अगले चरण में जोड़ेंगे।
+  </p>
+</section>
+
+<footer>
+  नक्शा © OpenStreetMap contributors
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+const map = L.map('map').setView([25.58, 83.58], 10);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+let marker;
+
+function showPlace(lat, lon, name) {
+  if (marker) map.removeLayer(marker);
+
+  marker = L.marker([lat, lon]).addTo(map);
+  marker.bindPopup(name).openPopup();
+
+  document.getElementById('details').innerHTML = `
+    <h3>📍 ${escapeHTML(name)}</h3>
+    <p><b>अक्षांश:</b> ${lat.toFixed(5)}</p>
+    <p><b>देशांतर:</b> ${lon.toFixed(5)}</p>
+    <p>जिला: गाजीपुर के क्षेत्र की जाँच आवश्यक</p>
+    <p>ग्राम प्रधान: सत्यापित जानकारी अभी नहीं जोड़ी गई</p>
+    <p>विधायक / सांसद: संबंधित निर्वाचन क्षेत्र की जाँच आवश्यक</p>
+    <p class="note">
+      यह स्थान चुने गए बिंदु का है। इससे गाँव की सीमा,
+      प्रधान या निर्वाचित प्रतिनिधि की पहचान अपने आप
+      सत्यापित नहीं होती।
+    </p>`;
+}
+
+function escapeHTML(value) {
+  return String(value).replace(/[&<>"']/g, function(c) {
+    return {
+      '&': '&amp;', '<': '&lt;', '>': '&gt;',
+      '"': '&quot;', "'": '&#39;'
+    }[c];
+  });
+}
+
+map.on('click', function(e) {
+  showPlace(e.latlng.lat, e.latlng.lng, 'चुनी गई जगह');
+});
+
+async function searchPlace() {
+  const q = document.getElementById('place').value.trim();
+
+  if (!q) {
+    alert('पहले गाँव या शहर का नाम लिखो।');
+    return;
+  }
+
+  const query = q + ', Ghazipur, Uttar Pradesh, India';
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q='
+    + encodeURIComponent(query);
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Search unavailable');
+
+    const results = await response.json();
+
+    if (!results.length) {
+      alert('जगह नहीं मिली। नाम बदलकर कोशिश करो।');
+      return;
+    }
+
+    const p = results[0];
+    const lat = Number(p.lat);
+    const lon = Number(p.lon);
+
+    map.setView([lat, lon], 14);
+    showPlace(lat, lon, p.display_name);
+  } catch (error) {
+    alert('खोज अभी नहीं हो पाई। इंटरनेट जाँचकर दोबारा कोशिश करो।');
+  }
+}
+
+document.getElementById('place').addEventListener('keydown', e => {
+  if (e.key === 'Enter') searchPlace();
+});
+</script>
+</body>
+</html>
