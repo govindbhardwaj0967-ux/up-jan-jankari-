@@ -285,6 +285,11 @@ function selectResult(index, results = window.searchResults) {
 document.getElementById('place').addEventListener('keydown', e => {
   if (e.key === 'Enter') searchPlace();
 });
+ async function searchBlock(blockName) {
+  const input = document.getElementById('place');
+  input.value = blockName + ', Ghazipur, Uttar Pradesh, India';
+  await searchPlace();
+ }
 </script>
  </body>
 </html>
